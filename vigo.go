@@ -248,7 +248,7 @@ func handleNormalMode(e *editor, ev *tcell.EventKey) {
 			}
 		case 'l': // move right
 			lineIdx := e.cursor.y + e.cursor.scrolloffset
-			if lineIdx < len(e.lines) && e.cursor.x < len(e.lines[lineIdx]) {
+			if lineIdx < len(e.lines)-1 && e.cursor.x < len(e.lines[lineIdx])-1 {
 				e.cursor.x++
 			}
 		case ':':
