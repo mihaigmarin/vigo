@@ -9,10 +9,16 @@ import (
 )
 
 const (
-	NORMAL = iota
-	INSERT
-	COMMAND
+	Normal = iota
+	Insert
+	Command
 )
+
+type cursor struct {
+	x      int
+	y      int
+	offset int
+}
 
 type editor struct {
 	fname  string
@@ -21,12 +27,6 @@ type editor struct {
 	screen tcell.Screen
 	style  tcell.Style
 	mode   int
-}
-
-type cursor struct {
-	x      int
-	y      int
-	offset int
 }
 
 // Init editor
@@ -46,20 +46,64 @@ func (e *editor) init() {
 		log.Fatal(err)
 	}
 	e.style = tcell.StyleDefault.Normal()
-	e.mode = NORMAL
+	e.mode = Normal
 }
 
 // Draw editor content on screen
 func (e *editor) draw() {
 	e.screen.Clear()
-	//h, w := e.screen.Size()
-	for y, l := range e.lines {
-		for x, c := range l {
-			e.screen.SetContent(x, y, c, nil, e.style)
+	w, h := e.screen.Size()
+	for i := 0; i < h && (i + e.c.offset) < len(e.lines); i++ {
+		l := e.lines[i + e.c.offset]
+		for j, c := range l {
+			if j >= w {
+				break
+			}
+			e.screen.SetContent(j, i, c, nil, e.style)
 		}
 	}
 	e.screen.ShowCursor(e.c.x, e.c.y)
 	e.screen.Show()
+}
+
+// Move editor cursor up.
+func (e *editor) up() {
+	if e.c.y > 0 {
+		e.c.y--
+		if e.c.x > len(e.lines[e.c.y + e.c.offset]) - 1 {
+			e.c.x = len(e.lines[e.c.y + e.c.offset]) - 1
+		}
+	}
+}
+
+// Move editor cursor down.
+func (e *editor) down() {
+	_, h := e.screen.Size()
+	if e.c.y + e.c.offset <= len(e.lines) - 2 {
+		if e.c.y < h - 1 {
+			e.c.y++
+		} else {
+			e.c.offset++
+		}
+		if e.c.x > len(e.lines[e.c.y + e.c.offset]) {
+			e.c.x = len(e.lines[e.c.y + e.c.offset]) - 1
+		}
+	}
+
+}
+
+// Move editor cursor left.
+func (e *editor) left() {
+	if e.c.x > 0 {
+		e.c.x--
+	}
+}
+
+// Move editor cursor right.
+func (e *editor) right() {
+	if e.c.x < len(e.lines[e.c.y + e.c.offset]) - 1 {
+		e.c.x++
+	}
 }
 
 func main() {
@@ -87,10 +131,19 @@ func main() {
 			e.draw()
 		case *tcell.EventKey:
 			switch ev.Key() {
+			case tcell.KeyLeft:
+				e.left()
+			case tcell.KeyRight:
+				e.right()
+			case tcell.KeyUp:
+				e.up()
+			case tcell.KeyDown:
+				e.down()
 			case tcell.KeyCtrlQ:
 				e.screen.Fini()
 				os.Exit(0)
 			default:
+				// Do nothing
 			}
 		default:
 			e.draw()
