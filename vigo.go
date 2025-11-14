@@ -27,6 +27,8 @@ type editor struct {
 	screen tcell.Screen
 	style  tcell.Style
 	mode   int
+	s      *bufio.Scanner
+	f      *os.File
 }
 
 // Init editor
@@ -49,12 +51,27 @@ func (e *editor) init() {
 	e.mode = Normal
 }
 
+// Open file path and read the content inside editor
+func (e *editor) open(fname string) {
+	var err error
+	e.f, err = os.OpenFile(fname, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer e.f.Close()
+	e.s = bufio.NewScanner(e.f)
+	for e.s.Scan() {
+		l := e.s.Text()
+		e.lines = append(e.lines, l)
+	}
+}
+
 // Draw editor content on screen
 func (e *editor) draw() {
 	e.screen.Clear()
 	w, h := e.screen.Size()
-	for i := 0; i < h && (i + e.c.offset) < len(e.lines); i++ {
-		l := e.lines[i + e.c.offset]
+	for i := 0; i < h && (i+e.c.offset) < len(e.lines); i++ {
+		l := e.lines[i+e.c.offset]
 		for j, c := range l {
 			if j >= w {
 				break
@@ -70,8 +87,8 @@ func (e *editor) draw() {
 func (e *editor) up() {
 	if e.c.y > 0 {
 		e.c.y--
-		if e.c.x > len(e.lines[e.c.y + e.c.offset]) - 1 {
-			e.c.x = len(e.lines[e.c.y + e.c.offset]) - 1
+		if e.c.x > len(e.lines[e.c.y+e.c.offset])-1 {
+			e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
 		}
 	}
 }
@@ -79,14 +96,14 @@ func (e *editor) up() {
 // Move editor cursor down.
 func (e *editor) down() {
 	_, h := e.screen.Size()
-	if e.c.y + e.c.offset <= len(e.lines) - 2 {
-		if e.c.y < h - 1 {
+	if e.c.y+e.c.offset <= len(e.lines)-2 {
+		if e.c.y < h-1 {
 			e.c.y++
 		} else {
 			e.c.offset++
 		}
-		if e.c.x > len(e.lines[e.c.y + e.c.offset]) {
-			e.c.x = len(e.lines[e.c.y + e.c.offset]) - 1
+		if e.c.x > len(e.lines[e.c.y+e.c.offset]) {
+			e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
 		}
 	}
 
@@ -101,29 +118,13 @@ func (e *editor) left() {
 
 // Move editor cursor right.
 func (e *editor) right() {
-	if e.c.x < len(e.lines[e.c.y + e.c.offset]) - 1 {
+	if e.c.x < len(e.lines[e.c.y+e.c.offset])-1 {
 		e.c.x++
 	}
 }
 
-func main() {
-	if len(os.Args) < 2 {
-		log.Fatal("Please provide file name")
-	}
-	fname := os.Args[1]
-	f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	var e editor
-	e.init()
-	s := bufio.NewScanner(f)
-	for s.Scan() {
-		l := s.Text()
-		e.lines = append(e.lines, l)
-	}
+// Run editor main loop and poll key events.
+func (e *editor) run() {
 	for {
 		ev := e.screen.PollEvent()
 		switch ev := ev.(type) {
@@ -140,14 +141,48 @@ func main() {
 			case tcell.KeyDown:
 				e.down()
 			case tcell.KeyCtrlQ:
-				e.screen.Fini()
-				os.Exit(0)
+				e.quit()
 			default:
 				// Do nothing
+			}
+			switch e.mode {
+			case Normal:
+				switch ev.Rune() {
+				case 'j':
+					e.down()
+				case 'k':
+					e.up()
+				case 'h':
+					e.left()
+				case 'l':
+					e.right()
+				case 'i':
+					e.mode = Insert
+				default:
+					// Do nothing
+				}
+			case Insert:
+			case Command:
 			}
 		default:
 			e.draw()
 		}
 		e.draw()
 	}
+}
+
+// Move editor cursor right.
+func (e *editor) quit() {
+	e.screen.Fini()
+	os.Exit(0)
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		log.Fatal("Please provide file name")
+	}
+	var e editor
+	e.init()
+	e.open(os.Args[1])
+	e.run()
 }
