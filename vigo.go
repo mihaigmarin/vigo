@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"log"
 	"os"
+	"unicode"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -73,6 +74,8 @@ func (e *editor) draw() {
 	for i := 0; i < h && (i+e.c.offset) < len(e.lines); i++ {
 		l := e.lines[i+e.c.offset]
 		for j, c := range l {
+			// Draw letters until we reach maximum width
+			// Todo: implement a mode to do line wrap
 			if j >= w {
 				break
 			}
@@ -123,6 +126,81 @@ func (e *editor) right() {
 	}
 }
 
+// Write rune to screen
+func (e *editor) write(r rune) {
+	// Write only printable character, avoid control characters such
+	// Enter, Backspace, etc. Those are handled separatly in the
+	// function 'handleKey'
+	if !unicode.IsControl(r) {
+		pl := &e.lines[e.c.y+e.c.offset];
+		*pl = (*pl)[:e.c.x] + string(r) + (*pl)[e.c.x:]
+		e.c.x++
+	}
+}
+
+// Delete rune from screen
+func (e *editor) delete() {
+	if e.c.x > 0 {
+		pl := &e.lines[e.c.y+e.c.offset];
+		*pl = (*pl)[:e.c.x-1] + (*pl)[e.c.x:]
+		e.c.x--
+	}
+}
+
+// Handle rune from stdin
+func (e *editor) handleRune(ev *tcell.EventKey) {
+	switch e.mode {
+	case Normal:
+		switch ev.Rune() {
+		case 'j':
+			e.down()
+		case 'k':
+			e.up()
+		case 'h':
+			e.left()
+		case 'l':
+			e.right()
+		case 'i':
+			e.mode = Insert
+		}
+	case Insert:
+		e.write(ev.Rune())
+	case Command:
+	default:
+		// Do nothing
+	}
+}
+
+// Handle key from stdin
+func (e *editor) handleKey(ev *tcell.EventKey) {
+	switch ev.Key() {
+	case tcell.KeyLeft:
+		e.left()
+	case tcell.KeyRight:
+		e.right()
+	case tcell.KeyUp:
+		e.up()
+	case tcell.KeyDown:
+		e.down()
+	case tcell.KeyCtrlQ:
+		e.quit()
+	case tcell.KeyEsc:
+		e.mode = Normal
+	case tcell.KeyBackspace, tcell.KeyBackspace2:
+		switch e.mode {
+		case Normal:
+			e.left()
+		case Insert:
+			e.delete()
+		case Command:
+		default:
+			// Do nothing
+		}
+	default:
+		// Do nothing
+	}
+}
+
 // Run editor main loop and poll key events.
 func (e *editor) run() {
 	for {
@@ -131,39 +209,8 @@ func (e *editor) run() {
 		case *tcell.EventResize:
 			e.draw()
 		case *tcell.EventKey:
-			switch ev.Key() {
-			case tcell.KeyLeft:
-				e.left()
-			case tcell.KeyRight:
-				e.right()
-			case tcell.KeyUp:
-				e.up()
-			case tcell.KeyDown:
-				e.down()
-			case tcell.KeyCtrlQ:
-				e.quit()
-			default:
-				// Do nothing
-			}
-			switch e.mode {
-			case Normal:
-				switch ev.Rune() {
-				case 'j':
-					e.down()
-				case 'k':
-					e.up()
-				case 'h':
-					e.left()
-				case 'l':
-					e.right()
-				case 'i':
-					e.mode = Insert
-				default:
-					// Do nothing
-				}
-			case Insert:
-			case Command:
-			}
+			e.handleKey(ev)
+			e.handleRune(ev)
 		default:
 			e.draw()
 		}
