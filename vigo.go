@@ -90,7 +90,7 @@ func (e *editor) draw() {
 func (e *editor) up() {
 	if e.c.y > 0 {
 		e.c.y--
-		if e.c.x > len(e.lines[e.c.y+e.c.offset])-1 {
+		if e.c.x > len(e.lines[e.c.y+e.c.offset]) - 1 {
 			e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
 		}
 	}
@@ -105,11 +105,10 @@ func (e *editor) down() {
 		} else {
 			e.c.offset++
 		}
-		if e.c.x > len(e.lines[e.c.y+e.c.offset]) {
+		if e.c.x > len(e.lines[e.c.y+e.c.offset]) - 1 {
 			e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
 		}
 	}
-
 }
 
 // Move editor cursor left.
@@ -147,32 +146,32 @@ func (e *editor) delete() {
 	}
 }
 
-// Handle rune from stdin
-func (e *editor) handleRune(ev *tcell.EventKey) {
-	switch e.mode {
-	case Normal:
-		switch ev.Rune() {
-		case 'j':
-			e.down()
-		case 'k':
-			e.up()
-		case 'h':
-			e.left()
-		case 'l':
-			e.right()
-		case 'i':
-			e.mode = Insert
-		}
-	case Insert:
-		e.write(ev.Rune())
-	case Command:
-	default:
-		// Do nothing
+// Add new line from the cursor current position
+// Todo: find a better way to do this
+func (e *editor) newline() {
+	l := e.lines[e.c.y+e.c.offset]
+	before := l[:e.c.x]
+	after := l[e.c.x:]
+	// Make sure we insert at least one empty char per new line
+	if before == "" {
+		before = " "
 	}
+	if after == "" {
+		after = " "
+	}
+	e.lines = append(e.lines[:e.c.y+e.c.offset+1], append([]string{after}, e.lines[e.c.y+e.c.offset+1:]...)...)
+	e.lines[e.c.y+e.c.offset] = before;
+	_, h := e.screen.Size()
+	if e.c.y >= h-1 {
+		e.c.offset++
+	} else {
+		e.c.y++
+	}
+	e.c.x = 0
 }
 
-// Handle key from stdin
-func (e *editor) handleKey(ev *tcell.EventKey) {
+// Handle event key
+func (e *editor) handle(ev *tcell.EventKey) {
 	switch ev.Key() {
 	case tcell.KeyLeft:
 		e.left()
@@ -192,12 +191,65 @@ func (e *editor) handleKey(ev *tcell.EventKey) {
 			e.left()
 		case Insert:
 			e.delete()
-		case Command:
 		default:
 			// Do nothing
 		}
+	case tcell.KeyEnter:
+		switch e.mode {
+		case Normal:
+			e.down()
+		case Insert:
+			e.newline()
+		}
+	}
+	switch ev.Rune() {
+	case 'j':
+		switch e.mode {
+		case Normal:
+			e.down()
+		case Insert:
+			e.write(ev.Rune())
+		case Command:
+		}
+	case 'k':
+		switch e.mode {
+			case Normal:
+				e.up()
+			case Insert:
+				e.write(ev.Rune())
+			case Command:
+		}
+	case 'h':
+		switch e.mode {
+			case Normal:
+				e.left()
+			case Insert:
+				e.write(ev.Rune())
+			case Command:
+		}
+	case 'l':
+		switch e.mode {
+			case Normal:
+				e.right()
+			case Insert:
+				e.write(ev.Rune())
+			case Command:
+		}
+	case 'i':
+		switch e.mode {
+			case Normal:
+				e.mode = Insert
+			case Insert:
+				e.write(ev.Rune())
+			case Command:
+		}
 	default:
-		// Do nothing
+		switch e.mode {
+			case Normal:
+			case Insert:
+				e.write(ev.Rune())
+			case Command:
+		}
 	}
 }
 
@@ -209,8 +261,7 @@ func (e *editor) run() {
 		case *tcell.EventResize:
 			e.draw()
 		case *tcell.EventKey:
-			e.handleKey(ev)
-			e.handleRune(ev)
+			e.handle(ev)
 		default:
 			e.draw()
 		}
