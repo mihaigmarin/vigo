@@ -38,8 +38,8 @@ func (cl *cmdl) init() {
 	cl.buf = ""
 }
 
-// Write rune to command buffer.
-func (cl *cmdl) write(r rune) {
+// Put rune to command buffer.
+func (cl *cmdl) put(r rune) {
 	cl.buf += string(r)
 }
 
@@ -51,7 +51,7 @@ type editor struct {
 	style  tcell.Style
 	mode   int
 	s      *bufio.Scanner
-	f      *os.File
+	w      *bufio.Writer
 	cl     cmdl
 }
 
@@ -72,20 +72,47 @@ func (e *editor) init() {
 	}
 	e.style = tcell.StyleDefault.Normal()
 	e.mode = Normal
+	e.s = nil
+	e.w = nil
 }
 
 // Open file path and read the content inside editor
 func (e *editor) open(fname string) {
-	var err error
-	e.f, err = os.OpenFile(fname, os.O_RDWR|os.O_CREATE, 0644)
+	e.fname = fname
+	f, err := os.OpenFile(fname, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer e.f.Close()
-	e.s = bufio.NewScanner(e.f)
+	defer f.Close()
+	e.s = bufio.NewScanner(f)
 	for e.s.Scan() {
 		l := e.s.Text()
 		e.lines = append(e.lines, l)
+	}
+	// If the file doesn't have any lines,
+	// add empty space at the start of line
+	if len(e.lines) == 0 {
+		e.lines = append(e.lines, []string{" "}...)
+	}
+}
+
+// Write lines to the current file opened by the editor.
+func (e *editor) write() {
+	f, err := os.OpenFile(e.fname, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	e.w = bufio.NewWriter(f)
+	for _, l := range e.lines {
+		_ , err := e.w.WriteString(l)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	err = e.w.Flush()
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -155,9 +182,9 @@ func (e *editor) right() {
 	}
 }
 
-// Write rune to screen
-func (e *editor) write(r rune) {
-	// Write only printable character, avoid control characters such
+// put rune to screen
+func (e *editor) put(r rune) {
+	// put only printable character, avoid control characters such
 	// Enter, Backspace, etc. Those are handled separatly in the
 	// function 'handleKey'
 	if !unicode.IsControl(r) {
@@ -177,6 +204,7 @@ func (e *editor) delete() {
 }
 
 // Add a new line
+// Todo: find a better way to do this
 func (e *editor) newline() {
 	e.lines = append(e.lines[:e.c.y+e.c.offset+1], append([]string{" "}, e.lines[e.c.y+e.c.offset+1:]...)...)
 	_, h := e.screen.Size()
@@ -257,7 +285,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		case Normal:
 			e.down()
 		case Insert:
-			e.write(ev.Rune())
+			e.put(ev.Rune())
 		case Command:
 		}
 	case 'k':
@@ -265,7 +293,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			case Normal:
 				e.up()
 			case Insert:
-				e.write(ev.Rune())
+				e.put(ev.Rune())
 			case Command:
 		}
 	case 'h':
@@ -273,7 +301,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			case Normal:
 				e.left()
 			case Insert:
-				e.write(ev.Rune())
+				e.put(ev.Rune())
 			case Command:
 		}
 	case 'l':
@@ -281,7 +309,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			case Normal:
 				e.right()
 			case Insert:
-				e.write(ev.Rune())
+				e.put(ev.Rune())
 			case Command:
 		}
 	case 'i':
@@ -289,7 +317,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			case Normal:
 				e.mode = Insert
 			case Insert:
-				e.write(ev.Rune())
+				e.put(ev.Rune())
 			case Command:
 		}
 	case 'o':
@@ -298,25 +326,25 @@ func (e *editor) handle(ev *tcell.EventKey) {
 				e.newline()
 				e.mode = Insert
 			case Insert:
-				e.write(ev.Rune())
+				e.put(ev.Rune())
 			case Command:
 		}
 	case ':':
 		switch e.mode {
 		case Normal:
 			e.mode = Command
-			e.cl.write(ev.Rune())
+			e.cl.put(ev.Rune())
 		case Insert:
 		case Command:
-			e.cl.write(ev.Rune())
+			e.cl.put(ev.Rune())
 		}
 	default:
 		switch e.mode {
 			case Normal:
 			case Insert:
-				e.write(ev.Rune())
+				e.put(ev.Rune())
 			case Command:
-				e.cl.write(ev.Rune())
+				e.cl.put(ev.Rune())
 		}
 	}
 }
@@ -341,6 +369,11 @@ func (e *editor) run() {
 func (e *editor) exec() {
 	switch e.cl.buf {
 		case ":q":
+			e.quit()
+		case ":w":
+			e.write()
+		case ":wq":
+			e.write()
 			e.quit()
 	}
 }
