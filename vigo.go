@@ -21,6 +21,28 @@ type cursor struct {
 	offset int
 }
 
+// Cursor struct. Stores cursor position.
+func (c *cursor) init() {
+	c.x = 0
+	c.y = 0
+	c.offset = 0
+}
+
+// Command line struct. Commands are stored here.
+type cmdl struct {
+	buf string
+}
+
+// Initialize command line
+func (cl *cmdl) init() {
+	cl.buf = ""
+}
+
+// Write rune to command buffer.
+func (cl *cmdl) write(r rune) {
+	cl.buf += string(r)
+}
+
 type editor struct {
 	fname  string
 	c      cursor
@@ -30,15 +52,15 @@ type editor struct {
 	mode   int
 	s      *bufio.Scanner
 	f      *os.File
+	cl     cmdl
 }
 
 // Init editor
 func (e *editor) init() {
 	var err error
+	e.c.init()
+	e.cl.init()
 	e.fname = ""
-	e.c.x = 0
-	e.c.y = 0
-	e.c.offset = 0
 	e.lines = make([]string, 0)
 	e.screen, err = tcell.NewScreen()
 	if err != nil {
@@ -71,7 +93,7 @@ func (e *editor) open(fname string) {
 func (e *editor) draw() {
 	e.screen.Clear()
 	w, h := e.screen.Size()
-	for i := 0; i < h && (i+e.c.offset) < len(e.lines); i++ {
+	for i := 0; i < h-1 && (i+e.c.offset) < len(e.lines); i++ {
 		l := e.lines[i+e.c.offset]
 		for j, c := range l {
 			// Draw letters until we reach maximum width
@@ -82,6 +104,12 @@ func (e *editor) draw() {
 			e.screen.SetContent(j, i, c, nil, e.style)
 		}
 	}
+	for i, c := range e.cl.buf {
+		if i >= w {
+			break;
+		}
+		e.screen.SetContent(i, h-1, c, nil, e.style)
+	}
 	e.screen.ShowCursor(e.c.x, e.c.y)
 	e.screen.Show()
 }
@@ -90,9 +118,11 @@ func (e *editor) draw() {
 func (e *editor) up() {
 	if e.c.y > 0 {
 		e.c.y--
-		if e.c.x > len(e.lines[e.c.y+e.c.offset]) - 1 {
-			e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
-		}
+	} else if e.c.offset > 0 {
+		e.c.offset--
+	}
+	if e.c.x > len(e.lines[e.c.y+e.c.offset]) - 1 {
+		e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
 	}
 }
 
@@ -100,7 +130,7 @@ func (e *editor) up() {
 func (e *editor) down() {
 	_, h := e.screen.Size()
 	if e.c.y+e.c.offset <= len(e.lines)-2 {
-		if e.c.y < h-1 {
+		if e.c.y < h-2 {
 			e.c.y++
 		} else {
 			e.c.offset++
@@ -146,9 +176,22 @@ func (e *editor) delete() {
 	}
 }
 
-// Add new line from the cursor current position
-// Todo: find a better way to do this
+// Add a new line
 func (e *editor) newline() {
+	e.lines = append(e.lines[:e.c.y+e.c.offset+1], append([]string{" "}, e.lines[e.c.y+e.c.offset+1:]...)...)
+	_, h := e.screen.Size()
+	if e.c.y >= h-1 {
+		e.c.offset++
+	} else {
+		e.c.y++
+	}
+	e.c.x = 0;
+}
+
+// Add a new line from the cursor current position.
+// If the cursor is in the middle of a line, split that line.
+// Todo: find a better way to do this
+func (e *editor) newlinesplit() {
 	l := e.lines[e.c.y+e.c.offset]
 	before := l[:e.c.x]
 	after := l[e.c.x:]
@@ -184,7 +227,11 @@ func (e *editor) handle(ev *tcell.EventKey) {
 	case tcell.KeyCtrlQ:
 		e.quit()
 	case tcell.KeyEsc:
-		e.mode = Normal
+		switch e.mode {
+		case Normal:
+		case Insert, Command:
+			e.mode = Normal
+		}
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		switch e.mode {
 		case Normal:
@@ -199,7 +246,9 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		case Normal:
 			e.down()
 		case Insert:
-			e.newline()
+			e.newlinesplit()
+		case Command:
+			e.exec()
 		}
 	}
 	switch ev.Rune() {
@@ -243,12 +292,31 @@ func (e *editor) handle(ev *tcell.EventKey) {
 				e.write(ev.Rune())
 			case Command:
 		}
+	case 'o':
+		switch e.mode {
+			case Normal:
+				e.newline()
+				e.mode = Insert
+			case Insert:
+				e.write(ev.Rune())
+			case Command:
+		}
+	case ':':
+		switch e.mode {
+		case Normal:
+			e.mode = Command
+			e.cl.write(ev.Rune())
+		case Insert:
+		case Command:
+			e.cl.write(ev.Rune())
+		}
 	default:
 		switch e.mode {
 			case Normal:
 			case Insert:
 				e.write(ev.Rune())
 			case Command:
+				e.cl.write(ev.Rune())
 		}
 	}
 }
@@ -269,7 +337,15 @@ func (e *editor) run() {
 	}
 }
 
-// Move editor cursor right.
+// Exec content from command buffer
+func (e *editor) exec() {
+	switch e.cl.buf {
+		case ":q":
+			e.quit()
+	}
+}
+
+// Quit editor
 func (e *editor) quit() {
 	e.screen.Fini()
 	os.Exit(0)
