@@ -43,6 +43,11 @@ func (cl *cmdl) put(r rune) {
 	cl.buf += string(r)
 }
 
+// Reset command buffer.
+func (cl *cmdl) reset() {
+	cl.buf = ""
+}
+
 type editor struct {
 	fname  string
 	c      cursor
@@ -105,10 +110,11 @@ func (e *editor) write() {
 	defer f.Close()
 	e.w = bufio.NewWriter(f)
 	for _, l := range e.lines {
-		_ , err := e.w.WriteString(l)
+		_, err := e.w.WriteString(l)
 		if err != nil {
 			log.Fatal(err)
 		}
+		e.w.WriteString("\n")
 	}
 	err = e.w.Flush()
 	if err != nil {
@@ -133,7 +139,7 @@ func (e *editor) draw() {
 	}
 	for i, c := range e.cl.buf {
 		if i >= w {
-			break;
+			break
 		}
 		e.screen.SetContent(i, h-1, c, nil, e.style)
 	}
@@ -148,7 +154,7 @@ func (e *editor) up() {
 	} else if e.c.offset > 0 {
 		e.c.offset--
 	}
-	if e.c.x > len(e.lines[e.c.y+e.c.offset]) - 1 {
+	if e.c.x > len(e.lines[e.c.y+e.c.offset])-1 {
 		e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
 	}
 }
@@ -162,7 +168,7 @@ func (e *editor) down() {
 		} else {
 			e.c.offset++
 		}
-		if e.c.x > len(e.lines[e.c.y+e.c.offset]) - 1 {
+		if e.c.x > len(e.lines[e.c.y+e.c.offset])-1 {
 			e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
 		}
 	}
@@ -188,7 +194,7 @@ func (e *editor) put(r rune) {
 	// Enter, Backspace, etc. Those are handled separatly in the
 	// function 'handleKey'
 	if !unicode.IsControl(r) {
-		pl := &e.lines[e.c.y+e.c.offset];
+		pl := &e.lines[e.c.y+e.c.offset]
 		*pl = (*pl)[:e.c.x] + string(r) + (*pl)[e.c.x:]
 		e.c.x++
 	}
@@ -197,7 +203,7 @@ func (e *editor) put(r rune) {
 // Delete rune from screen
 func (e *editor) delete() {
 	if e.c.x > 0 {
-		pl := &e.lines[e.c.y+e.c.offset];
+		pl := &e.lines[e.c.y+e.c.offset]
 		*pl = (*pl)[:e.c.x-1] + (*pl)[e.c.x:]
 		e.c.x--
 	}
@@ -213,7 +219,7 @@ func (e *editor) newline() {
 	} else {
 		e.c.y++
 	}
-	e.c.x = 0;
+	e.c.x = 0
 }
 
 // Add a new line from the cursor current position.
@@ -231,7 +237,7 @@ func (e *editor) newlinesplit() {
 		after = " "
 	}
 	e.lines = append(e.lines[:e.c.y+e.c.offset+1], append([]string{after}, e.lines[e.c.y+e.c.offset+1:]...)...)
-	e.lines[e.c.y+e.c.offset] = before;
+	e.lines[e.c.y+e.c.offset] = before
 	_, h := e.screen.Size()
 	if e.c.y >= h-1 {
 		e.c.offset++
@@ -290,44 +296,44 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		}
 	case 'k':
 		switch e.mode {
-			case Normal:
-				e.up()
-			case Insert:
-				e.put(ev.Rune())
-			case Command:
+		case Normal:
+			e.up()
+		case Insert:
+			e.put(ev.Rune())
+		case Command:
 		}
 	case 'h':
 		switch e.mode {
-			case Normal:
-				e.left()
-			case Insert:
-				e.put(ev.Rune())
-			case Command:
+		case Normal:
+			e.left()
+		case Insert:
+			e.put(ev.Rune())
+		case Command:
 		}
 	case 'l':
 		switch e.mode {
-			case Normal:
-				e.right()
-			case Insert:
-				e.put(ev.Rune())
-			case Command:
+		case Normal:
+			e.right()
+		case Insert:
+			e.put(ev.Rune())
+		case Command:
 		}
 	case 'i':
 		switch e.mode {
-			case Normal:
-				e.mode = Insert
-			case Insert:
-				e.put(ev.Rune())
-			case Command:
+		case Normal:
+			e.mode = Insert
+		case Insert:
+			e.put(ev.Rune())
+		case Command:
 		}
 	case 'o':
 		switch e.mode {
-			case Normal:
-				e.newline()
-				e.mode = Insert
-			case Insert:
-				e.put(ev.Rune())
-			case Command:
+		case Normal:
+			e.newline()
+			e.mode = Insert
+		case Insert:
+			e.put(ev.Rune())
+		case Command:
 		}
 	case ':':
 		switch e.mode {
@@ -340,11 +346,11 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		}
 	default:
 		switch e.mode {
-			case Normal:
-			case Insert:
-				e.put(ev.Rune())
-			case Command:
-				e.cl.put(ev.Rune())
+		case Normal:
+		case Insert:
+			e.put(ev.Rune())
+		case Command:
+			e.cl.put(ev.Rune())
 		}
 	}
 }
@@ -368,14 +374,18 @@ func (e *editor) run() {
 // Exec content from command buffer
 func (e *editor) exec() {
 	switch e.cl.buf {
-		case ":q":
-			e.quit()
-		case ":w":
-			e.write()
-		case ":wq":
-			e.write()
-			e.quit()
+	case ":q":
+		e.quit()
+	case ":w":
+		e.write()
+	case ":wq":
+		e.write()
+		e.quit()
 	}
+	// Reset command buffer after command is executed
+	e.cl.reset()
+	// Put editor automatically in normal mode
+	e.mode = Normal
 }
 
 // Quit editor
