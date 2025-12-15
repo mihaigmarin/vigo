@@ -1,4 +1,4 @@
-module github.com/gbrlmarn/vigo
+module github.com/gabrielmarindev/vigo
 
 go 1.24.1
 

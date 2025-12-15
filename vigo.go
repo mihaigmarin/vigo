@@ -51,7 +51,7 @@ func (cl *cmdl) reset() {
 type editor struct {
 	fname  string
 	c      cursor
-	lines  []string
+	lines  [][]rune
 	screen tcell.Screen
 	style  tcell.Style
 	mode   int
@@ -66,7 +66,7 @@ func (e *editor) init() {
 	e.c.init()
 	e.cl.init()
 	e.fname = ""
-	e.lines = make([]string, 0)
+	e.lines = make([][]rune, 0)
 	e.screen, err = tcell.NewScreen()
 	if err != nil {
 		log.Fatal(err)
@@ -92,12 +92,12 @@ func (e *editor) open(fname string) {
 	e.s = bufio.NewScanner(f)
 	for e.s.Scan() {
 		l := e.s.Text()
-		e.lines = append(e.lines, l)
+		e.lines = append(e.lines, []rune(l))
 	}
 	// If the file doesn't have any lines,
 	// add empty space at the start of line
 	if len(e.lines) == 0 {
-		e.lines = append(e.lines, []string{" "}...)
+		e.lines = append(e.lines, []rune{' '})
 	}
 }
 
@@ -110,11 +110,16 @@ func (e *editor) write() {
 	defer f.Close()
 	e.w = bufio.NewWriter(f)
 	for _, l := range e.lines {
-		_, err := e.w.WriteString(l)
-		if err != nil {
-			log.Fatal(err)
-		}
-		e.w.WriteString("\n")
+        for _, r := range l {
+            _, err := e.w.WriteRune(r)
+            if err != nil {
+                log.Fatal(err)
+            }
+        }
+        _, err = e.w.WriteRune('\n')
+        if err != nil {
+            log.Fatal(err)
+        }
 	}
 	err = e.w.Flush()
 	if err != nil {
@@ -195,7 +200,8 @@ func (e *editor) put(r rune) {
 	// function 'handleKey'
 	if !unicode.IsControl(r) {
 		pl := &e.lines[e.c.y+e.c.offset]
-		*pl = (*pl)[:e.c.x] + string(r) + (*pl)[e.c.x:]
+        *pl = append((*pl)[:e.c.x], r)
+        *pl = append(*pl, (*pl)[e.c.x+1:]...)
 		e.c.x++
 	}
 }
@@ -204,15 +210,17 @@ func (e *editor) put(r rune) {
 func (e *editor) delete() {
 	if e.c.x > 0 {
 		pl := &e.lines[e.c.y+e.c.offset]
-		*pl = (*pl)[:e.c.x-1] + (*pl)[e.c.x:]
+		*pl = append((*pl)[:e.c.x-1], (*pl)[e.c.x:]...)
 		e.c.x--
 	}
 }
 
 // Add a new line
-// Todo: find a better way to do this
 func (e *editor) newline() {
-	e.lines = append(e.lines[:e.c.y+e.c.offset+1], append([]string{" "}, e.lines[e.c.y+e.c.offset+1:]...)...)
+    i := e.c.y+e.c.offset+1
+    e.lines = append(e.lines, nil)
+    copy(e.lines[i+1:], e.lines[i:])
+    e.lines[i] = []rune{}
 	_, h := e.screen.Size()
 	if e.c.y >= h-1 {
 		e.c.offset++
@@ -224,20 +232,22 @@ func (e *editor) newline() {
 
 // Add a new line from the cursor current position.
 // If the cursor is in the middle of a line, split that line.
-// Todo: find a better way to do this
 func (e *editor) newlinesplit() {
 	l := e.lines[e.c.y+e.c.offset]
 	before := l[:e.c.x]
 	after := l[e.c.x:]
 	// Make sure we insert at least one empty char per new line
-	if before == "" {
-		before = " "
+	if len(before) == 0 {
+		before = []rune{}
 	}
-	if after == "" {
-		after = " "
+	if len(after) == 0 {
+		after = []rune{}
 	}
-	e.lines = append(e.lines[:e.c.y+e.c.offset+1], append([]string{after}, e.lines[e.c.y+e.c.offset+1:]...)...)
-	e.lines[e.c.y+e.c.offset] = before
+    i := e.c.y+e.c.offset+1
+    e.lines = append(e.lines, nil)
+    copy(e.lines[i+1:], e.lines[i:])
+    e.lines[i-1] = before
+    e.lines[i] = after
 	_, h := e.screen.Size()
 	if e.c.y >= h-1 {
 		e.c.offset++
