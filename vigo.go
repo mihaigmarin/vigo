@@ -49,15 +49,16 @@ func (cl *cmdl) reset() {
 }
 
 type editor struct {
-	fname  string
-	c      cursor
-	lines  [][]rune
-	screen tcell.Screen
-	style  tcell.Style
-	mode   int
-	s      *bufio.Scanner
-	w      *bufio.Writer
-	cl     cmdl
+	fname   string
+	c       cursor
+	lines   [][]rune
+	screen  tcell.Screen
+	style   tcell.Style
+	mode    int
+	s       *bufio.Scanner
+	w       *bufio.Writer
+	cl      cmdl
+	lastkey rune
 }
 
 // Init editor
@@ -110,16 +111,16 @@ func (e *editor) write() {
 	defer f.Close()
 	e.w = bufio.NewWriter(f)
 	for _, l := range e.lines {
-        for _, r := range l {
-            _, err := e.w.WriteRune(r)
-            if err != nil {
-                log.Fatal(err)
-            }
-        }
-        _, err = e.w.WriteRune('\n')
-        if err != nil {
-            log.Fatal(err)
-        }
+		for _, r := range l {
+			_, err := e.w.WriteRune(r)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		_, err = e.w.WriteRune('\n')
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	err = e.w.Flush()
 	if err != nil {
@@ -200,8 +201,8 @@ func (e *editor) put(r rune) {
 	// function 'handleKey'
 	if !unicode.IsControl(r) {
 		pl := &e.lines[e.c.y+e.c.offset]
-        *pl = append((*pl)[:e.c.x], r)
-        *pl = append(*pl, (*pl)[e.c.x+1:]...)
+		*pl = append((*pl)[:e.c.x], r)
+		*pl = append(*pl, (*pl)[e.c.x+1:]...)
 		e.c.x++
 	}
 }
@@ -217,16 +218,27 @@ func (e *editor) delete() {
 
 // Add a new line
 func (e *editor) newline() {
-    i := e.c.y+e.c.offset+1
-    e.lines = append(e.lines, nil)
-    copy(e.lines[i+1:], e.lines[i:])
-    e.lines[i] = []rune{}
+	i := e.c.y + e.c.offset + 1
+	e.lines = append(e.lines, nil)
+	copy(e.lines[i+1:], e.lines[i:])
+	e.lines[i] = []rune{}
 	_, h := e.screen.Size()
 	if e.c.y >= h-1 {
 		e.c.offset++
 	} else {
 		e.c.y++
 	}
+	e.c.x = 0
+}
+
+// Delete line
+func (e *editor) deleteline() {
+	i := e.c.y + e.c.offset
+	e.lines = append(e.lines[:i], e.lines[i+1:]...)
+	if i == len(e.lines) {
+		e.c.y--
+	}
+	// Everytime we delete a line cursor x position is reseted
 	e.c.x = 0
 }
 
@@ -243,11 +255,11 @@ func (e *editor) newlinesplit() {
 	if len(after) == 0 {
 		after = []rune{}
 	}
-    i := e.c.y+e.c.offset+1
-    e.lines = append(e.lines, nil)
-    copy(e.lines[i+1:], e.lines[i:])
-    e.lines[i-1] = before
-    e.lines[i] = after
+	i := e.c.y + e.c.offset + 1
+	e.lines = append(e.lines, nil)
+	copy(e.lines[i+1:], e.lines[i:])
+	e.lines[i-1] = before
+	e.lines[i] = after
 	_, h := e.screen.Size()
 	if e.c.y >= h-1 {
 		e.c.offset++
@@ -259,6 +271,12 @@ func (e *editor) newlinesplit() {
 
 // Handle event key
 func (e *editor) handle(ev *tcell.EventKey) {
+	// Reset lastkey everytime handle is called
+	prevkey := e.lastkey
+	if e.mode == Normal {
+		e.lastkey = 0
+	}
+
 	switch ev.Key() {
 	case tcell.KeyLeft:
 		e.left()
@@ -295,6 +313,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			e.exec()
 		}
 	}
+
 	switch ev.Rune() {
 	case 'j':
 		switch e.mode {
@@ -341,6 +360,18 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		case Normal:
 			e.newline()
 			e.mode = Insert
+		case Insert:
+			e.put(ev.Rune())
+		case Command:
+		}
+	case 'd':
+		switch e.mode {
+		case Normal:
+			if prevkey == 'd' {
+				e.deleteline()
+			} else {
+				e.lastkey = ev.Rune()
+			}
 		case Insert:
 			e.put(ev.Rune())
 		case Command:
