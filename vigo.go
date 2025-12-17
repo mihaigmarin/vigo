@@ -30,22 +30,27 @@ func (c *cursor) init() {
 
 // Command line struct. Commands are stored here.
 type cmdl struct {
-	buf string
+	buf []rune
 }
 
 // Initialize command line
 func (cl *cmdl) init() {
-	cl.buf = ""
+	cl.buf = []rune{}
 }
 
 // Put rune to command buffer.
 func (cl *cmdl) put(r rune) {
-	cl.buf += string(r)
+	cl.buf = append(cl.buf, r)
+}
+
+// Todo: implement this
+// Delete rune from command buffer.
+func (cl *cmdl) delete() {
 }
 
 // Reset command buffer.
 func (cl *cmdl) reset() {
-	cl.buf = ""
+	cl.buf = []rune{}
 }
 
 type editor struct {
@@ -143,11 +148,11 @@ func (e *editor) draw() {
 			e.screen.SetContent(j, i, c, nil, e.style)
 		}
 	}
-	for i, c := range e.cl.buf {
+	for i, r := range e.cl.buf {
 		if i >= w {
 			break
 		}
-		e.screen.SetContent(i, h-1, c, nil, e.style)
+		e.screen.SetContent(i, h-1, r, nil, e.style)
 	}
 	e.screen.ShowCursor(e.c.x, e.c.y)
 	e.screen.Show()
@@ -221,7 +226,7 @@ func (e *editor) newline() {
 	i := e.c.y + e.c.offset + 1
 	e.lines = append(e.lines, nil)
 	copy(e.lines[i+1:], e.lines[i:])
-	e.lines[i] = []rune{}
+	e.lines[i] = []rune{' '}
 	_, h := e.screen.Size()
 	if e.c.y >= h-1 {
 		e.c.offset++
@@ -269,6 +274,18 @@ func (e *editor) newlinesplit() {
 	e.c.x = 0
 }
 
+// Handle rune
+func (e *editor) handlerune(r rune, nfn func()) {
+	switch e.mode {
+	case Normal:
+		nfn()
+	case Insert:
+		e.put(r)
+	case Command:
+		e.cl.put(r)
+	}
+}
+
 // Handle event key
 func (e *editor) handle(ev *tcell.EventKey) {
 	// Reset lastkey everytime handle is called
@@ -288,6 +305,9 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		e.down()
 	case tcell.KeyCtrlQ:
 		e.quit()
+	case tcell.KeyCtrlC:
+		e.mode = Normal
+		e.cl.reset()
 	case tcell.KeyEsc:
 		switch e.mode {
 		case Normal:
@@ -300,6 +320,8 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			e.left()
 		case Insert:
 			e.delete()
+		case Command:
+			e.cl.delete()
 		default:
 			// Do nothing
 		}
@@ -314,85 +336,41 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		}
 	}
 
-	switch ev.Rune() {
+	switch r := ev.Rune(); r {
 	case 'j':
-		switch e.mode {
-		case Normal:
-			e.down()
-		case Insert:
-			e.put(ev.Rune())
-		case Command:
-		}
+		e.handlerune(r, e.down)
 	case 'k':
-		switch e.mode {
-		case Normal:
-			e.up()
-		case Insert:
-			e.put(ev.Rune())
-		case Command:
-		}
+		e.handlerune(r, e.up)
 	case 'h':
-		switch e.mode {
-		case Normal:
-			e.left()
-		case Insert:
-			e.put(ev.Rune())
-		case Command:
-		}
+		e.handlerune(r, e.left)
 	case 'l':
-		switch e.mode {
-		case Normal:
-			e.right()
-		case Insert:
-			e.put(ev.Rune())
-		case Command:
-		}
+		e.handlerune(r, e.right)
 	case 'i':
-		switch e.mode {
-		case Normal:
-			e.mode = Insert
-		case Insert:
-			e.put(ev.Rune())
-		case Command:
-		}
+		nfn := func() { e.mode = Insert }
+		e.handlerune(r, nfn)
 	case 'o':
-		switch e.mode {
-		case Normal:
+		nfn := func() {
 			e.newline()
 			e.mode = Insert
-		case Insert:
-			e.put(ev.Rune())
-		case Command:
 		}
+		e.handlerune(r, nfn)
 	case 'd':
-		switch e.mode {
-		case Normal:
+		nfn := func() {
 			if prevkey == 'd' {
 				e.deleteline()
 			} else {
 				e.lastkey = ev.Rune()
 			}
-		case Insert:
-			e.put(ev.Rune())
-		case Command:
 		}
+		e.handlerune(r, nfn)
 	case ':':
-		switch e.mode {
-		case Normal:
+		nfn := func() {
 			e.mode = Command
 			e.cl.put(ev.Rune())
-		case Insert:
-		case Command:
-			e.cl.put(ev.Rune())
 		}
+		e.handlerune(r, nfn)
 	default:
-		switch e.mode {
-		case Normal:
-		case Insert:
-			e.put(ev.Rune())
-		case Command:
-			e.cl.put(ev.Rune())
-		}
+		e.handlerune(r, func() {})
 	}
 }
 
@@ -414,7 +392,7 @@ func (e *editor) run() {
 
 // Exec content from command buffer
 func (e *editor) exec() {
-	switch e.cl.buf {
+	switch string(e.cl.buf) {
 	case ":q":
 		e.quit()
 	case ":w":
