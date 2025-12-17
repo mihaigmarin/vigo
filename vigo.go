@@ -31,26 +31,39 @@ func (c *cursor) init() {
 // Command line struct. Commands are stored here.
 type cmdl struct {
 	buf []rune
+	c   cursor
 }
 
-// Initialize command line
-func (cl *cmdl) init() {
+// Initialize command line. The parameter "h" is in fact the height where
+// the command line writes text. It will always be "h-1", where "h" is the
+// height calculated from the "tcell.Screen".
+func (cl *cmdl) init(h int) {
 	cl.buf = []rune{}
+	cl.c.x = 0
+	cl.c.y = h - 1
+	cl.c.offset = 0
 }
 
 // Put rune to command buffer.
 func (cl *cmdl) put(r rune) {
-	cl.buf = append(cl.buf, r)
+	if !unicode.IsControl(r) {
+		cl.buf = append(cl.buf, r)
+		cl.c.x++
+	}
 }
 
-// Todo: implement this
 // Delete rune from command buffer.
 func (cl *cmdl) delete() {
+	if cl.c.x > 0 {
+		cl.buf = cl.buf[:cl.c.x-1]
+		cl.c.x--
+	}
 }
 
 // Reset command buffer.
 func (cl *cmdl) reset() {
 	cl.buf = []rune{}
+	cl.c.x = 0
 }
 
 type editor struct {
@@ -70,7 +83,6 @@ type editor struct {
 func (e *editor) init() {
 	var err error
 	e.c.init()
-	e.cl.init()
 	e.fname = ""
 	e.lines = make([][]rune, 0)
 	e.screen, err = tcell.NewScreen()
@@ -82,6 +94,8 @@ func (e *editor) init() {
 		log.Fatal(err)
 	}
 	e.style = tcell.StyleDefault.Normal()
+	_, h := e.screen.Size()
+	e.cl.init(h)
 	e.mode = Normal
 	e.s = nil
 	e.w = nil
@@ -154,7 +168,11 @@ func (e *editor) draw() {
 		}
 		e.screen.SetContent(i, h-1, r, nil, e.style)
 	}
-	e.screen.ShowCursor(e.c.x, e.c.y)
+	if e.mode == Normal || e.mode == Insert {
+		e.screen.ShowCursor(e.c.x, e.c.y)
+	} else if e.mode == Command {
+		e.screen.ShowCursor(e.cl.c.x, e.cl.c.y)
+	}
 	e.screen.Show()
 }
 
@@ -366,7 +384,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 	case ':':
 		nfn := func() {
 			e.mode = Command
-			e.cl.put(ev.Rune())
+			e.cl.put(r)
 		}
 		e.handlerune(r, nfn)
 	default:
