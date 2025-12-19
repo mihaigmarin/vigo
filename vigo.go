@@ -52,8 +52,9 @@ func (cl *cmdl) put(r rune) {
 	}
 }
 
-// Delete rune from command buffer.
-func (cl *cmdl) delete() {
+// Handle backspace press in insert mode. When triggered this function
+// deletes the rune after the cursor position in the command line buffer.
+func (cl *cmdl) backspace() {
 	if cl.c.x > 0 {
 		cl.buf = cl.buf[:cl.c.x-1]
 		cl.c.x--
@@ -262,13 +263,29 @@ func (e *editor) put(r rune) {
 	}
 }
 
-// Delete rune from screen
-func (e *editor) delete() {
+// Handle backspace press in insert mode. When triggered this function
+// deletes the rune after the cursor position in the editor buffer.
+func (e *editor) backspace() {
 	if e.c.x > 0 {
 		pl := &e.lines[e.c.y+e.c.offset]
 		*pl = append((*pl)[:e.c.x-1], (*pl)[e.c.x:]...)
 		e.c.x--
 	}
+}
+
+func (e *editor) deletechar() {
+    pl := &e.lines[e.c.y+e.c.offset]
+    if e.c.x+1 <= len(*pl) {
+        if len(*pl) > 1 {
+            length := len(*pl)
+            *pl = append((*pl)[:e.c.x], (*pl)[e.c.x+1:]...)
+            if e.c.x+1 == length {
+                e.c.x--
+            }
+        } else {
+            (*pl)[e.c.x] = ' '
+        }
+    }
 }
 
 // Add a new line
@@ -369,9 +386,9 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		case Normal:
 			e.left()
 		case Insert:
-			e.delete()
+			e.backspace()
 		case Command:
-			e.cl.delete()
+			e.cl.backspace()
 		default:
 			// Do nothing
 		}
@@ -417,6 +434,8 @@ func (e *editor) handle(ev *tcell.EventKey) {
         e.handlerune(r, e.rightword)
     case 'b':
         e.handlerune(r, e.leftword)
+    case 'x':
+        e.handlerune(r, e.deletechar)
 	case ':':
 		nfn := func() {
 			e.mode = Command
