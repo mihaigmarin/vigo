@@ -217,6 +217,38 @@ func (e *editor) right() {
 	}
 }
 
+// Move cursor left until the end of word. Triggered with "b" in normal mode
+func (e *editor) leftword() {
+    i := e.c.y+e.c.offset
+
+    e.left()
+    for e.c.x >= 0 && unicode.IsSpace(e.lines[i][e.c.x]) {
+        e.left()
+    }
+    for e.c.x-1 >= 0 {
+        if unicode.IsSpace(e.lines[i][e.c.x-1]) {
+            break
+        }
+        e.left()
+    }
+}
+
+// Move cursor right until the end of word. Triggered with "e" in normal mode
+func (e *editor) rightword() {
+    i := e.c.y+e.c.offset
+
+    e.right()
+    for e.c.x < len(e.lines[i]) && unicode.IsSpace(e.lines[i][e.c.x]) {
+        e.right()
+    }
+    for e.c.x+1 < len(e.lines[i]) {
+        if unicode.IsSpace(e.lines[i][e.c.x+1]) {
+            break
+        }
+        e.right()
+    }
+}
+
 // put rune to screen
 func (e *editor) put(r rune) {
 	// put only printable character, avoid control characters such
@@ -381,6 +413,10 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			}
 		}
 		e.handlerune(r, nfn)
+    case 'e':
+        e.handlerune(r, e.rightword)
+    case 'b':
+        e.handlerune(r, e.leftword)
 	case ':':
 		nfn := func() {
 			e.mode = Command
