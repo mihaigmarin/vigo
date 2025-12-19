@@ -274,16 +274,23 @@ func (e *editor) backspace() {
 }
 
 func (e *editor) deletechar() {
-    pl := &e.lines[e.c.y+e.c.offset]
-    if e.c.x+1 <= len(*pl) {
-        if len(*pl) > 1 {
-            length := len(*pl)
-            *pl = append((*pl)[:e.c.x], (*pl)[e.c.x+1:]...)
-            if e.c.x+1 == length {
-                e.c.x--
-            }
-        } else {
-            (*pl)[e.c.x] = ' '
+    i := e.c.y+e.c.offset
+    pl := &e.lines[i]
+
+    if len(*pl) == 0 {
+        return
+    }
+
+    if len(*pl) == 1 {
+        (*pl)[e.c.x] = ' '
+        e.c.x = 0
+        return
+    }
+
+    if e.c.x < len(*pl) {
+        *pl = append((*pl)[:e.c.x], (*pl)[e.c.x+1:]...)
+        if e.c.x >= len(*pl) {
+            e.c.x = len(*pl)-1
         }
     }
 }
