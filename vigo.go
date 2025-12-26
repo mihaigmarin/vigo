@@ -5,8 +5,9 @@ import (
 	"log"
 	"os"
 	"unicode"
+    "unicode/utf8"
 
-	"github.com/gdamore/tcell/v2"
+	"github.com/gdamore/tcell/v3"
 )
 
 const (
@@ -410,7 +411,12 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		}
 	}
 
-	switch r := ev.Rune(); r {
+    s := ev.Str()
+    r, size := utf8.DecodeRuneInString(s)
+    if r == utf8.RuneError || size != len(s) {
+        log.Fatal(r)
+    }
+	switch r {
 	case 'j':
 		e.handlerune(r, e.down)
 	case 'k':
@@ -433,7 +439,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			if prevkey == 'd' {
 				e.deleteline()
 			} else {
-				e.lastkey = ev.Rune()
+				e.lastkey = r
 			}
 		}
 		e.handlerune(r, nfn)
@@ -457,7 +463,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 // Run editor main loop and poll key events.
 func (e *editor) run() {
 	for {
-		ev := e.screen.PollEvent()
+		ev := <-e.screen.EventQ()
 		switch ev := ev.(type) {
 		case *tcell.EventResize:
 			e.draw()
