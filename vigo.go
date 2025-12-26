@@ -5,8 +5,9 @@ import (
 	"log"
 	"os"
 	"unicode"
+    "unicode/utf8"
 
-	"github.com/gdamore/tcell/v2"
+	"github.com/gdamore/tcell/v3"
 )
 
 const (
@@ -52,8 +53,9 @@ func (cl *cmdl) put(r rune) {
 	}
 }
 
-// Delete rune from command buffer.
-func (cl *cmdl) delete() {
+// Handle backspace press in insert mode. When triggered this function
+// deletes the rune after the cursor position in the command line buffer.
+func (cl *cmdl) backspace() {
 	if cl.c.x > 0 {
 		cl.buf = cl.buf[:cl.c.x-1]
 		cl.c.x--
@@ -262,13 +264,36 @@ func (e *editor) put(r rune) {
 	}
 }
 
-// Delete rune from screen
-func (e *editor) delete() {
+// Handle backspace press in insert mode. When triggered this function
+// deletes the rune after the cursor position in the editor buffer.
+func (e *editor) backspace() {
 	if e.c.x > 0 {
 		pl := &e.lines[e.c.y+e.c.offset]
 		*pl = append((*pl)[:e.c.x-1], (*pl)[e.c.x:]...)
 		e.c.x--
 	}
+}
+
+func (e *editor) deletechar() {
+    i := e.c.y+e.c.offset
+    pl := &e.lines[i]
+
+    if len(*pl) == 0 {
+        return
+    }
+
+    if len(*pl) == 1 {
+        (*pl)[e.c.x] = ' '
+        e.c.x = 0
+        return
+    }
+
+    if e.c.x < len(*pl) {
+        *pl = append((*pl)[:e.c.x], (*pl)[e.c.x+1:]...)
+        if e.c.x >= len(*pl) {
+            e.c.x = len(*pl)-1
+        }
+    }
 }
 
 // Add a new line
@@ -369,9 +394,9 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		case Normal:
 			e.left()
 		case Insert:
-			e.delete()
+			e.backspace()
 		case Command:
-			e.cl.delete()
+			e.cl.backspace()
 		default:
 			// Do nothing
 		}
@@ -386,7 +411,12 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		}
 	}
 
-	switch r := ev.Rune(); r {
+    s := ev.Str()
+    r, size := utf8.DecodeRuneInString(s)
+    if r == utf8.RuneError || size != len(s) {
+        log.Fatal(r)
+    }
+	switch r {
 	case 'j':
 		e.handlerune(r, e.down)
 	case 'k':
@@ -409,7 +439,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			if prevkey == 'd' {
 				e.deleteline()
 			} else {
-				e.lastkey = ev.Rune()
+				e.lastkey = r
 			}
 		}
 		e.handlerune(r, nfn)
@@ -417,6 +447,8 @@ func (e *editor) handle(ev *tcell.EventKey) {
         e.handlerune(r, e.rightword)
     case 'b':
         e.handlerune(r, e.leftword)
+    case 'x':
+        e.handlerune(r, e.deletechar)
 	case ':':
 		nfn := func() {
 			e.mode = Command
@@ -431,7 +463,7 @@ func (e *editor) handle(ev *tcell.EventKey) {
 // Run editor main loop and poll key events.
 func (e *editor) run() {
 	for {
-		ev := e.screen.PollEvent()
+		ev := <-e.screen.EventQ()
 		switch ev := ev.(type) {
 		case *tcell.EventResize:
 			e.draw()
