@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 	"unicode"
-    "unicode/utf8"
+	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v3"
 )
@@ -221,34 +221,34 @@ func (e *editor) right() {
 
 // Move cursor left until the end of word. Triggered with "b" in normal mode
 func (e *editor) leftword() {
-    i := e.c.y+e.c.offset
+	i := e.c.y + e.c.offset
 
-    e.left()
-    for e.c.x >= 0 && unicode.IsSpace(e.lines[i][e.c.x]) {
-        e.left()
-    }
-    for e.c.x-1 >= 0 {
-        if unicode.IsSpace(e.lines[i][e.c.x-1]) {
-            break
-        }
-        e.left()
-    }
+	e.left()
+	for e.c.x >= 0 && unicode.IsSpace(e.lines[i][e.c.x]) {
+		e.left()
+	}
+	for e.c.x-1 >= 0 {
+		if unicode.IsSpace(e.lines[i][e.c.x-1]) {
+			break
+		}
+		e.left()
+	}
 }
 
 // Move cursor right until the end of word. Triggered with "e" in normal mode
 func (e *editor) rightword() {
-    i := e.c.y+e.c.offset
+	i := e.c.y + e.c.offset
 
-    e.right()
-    for e.c.x < len(e.lines[i]) && unicode.IsSpace(e.lines[i][e.c.x]) {
-        e.right()
-    }
-    for e.c.x+1 < len(e.lines[i]) {
-        if unicode.IsSpace(e.lines[i][e.c.x+1]) {
-            break
-        }
-        e.right()
-    }
+	e.right()
+	for e.c.x < len(e.lines[i]) && unicode.IsSpace(e.lines[i][e.c.x]) {
+		e.right()
+	}
+	for e.c.x+1 < len(e.lines[i]) {
+		if unicode.IsSpace(e.lines[i][e.c.x+1]) {
+			break
+		}
+		e.right()
+	}
 }
 
 // put rune to screen
@@ -275,25 +275,25 @@ func (e *editor) backspace() {
 }
 
 func (e *editor) deletechar() {
-    i := e.c.y+e.c.offset
-    pl := &e.lines[i]
+	i := e.c.y + e.c.offset
+	pl := &e.lines[i]
 
-    if len(*pl) == 0 {
-        return
-    }
+	if len(*pl) == 0 {
+		return
+	}
 
-    if len(*pl) == 1 {
-        (*pl)[e.c.x] = ' '
-        e.c.x = 0
-        return
-    }
+	if len(*pl) == 1 {
+		(*pl)[e.c.x] = ' '
+		e.c.x = 0
+		return
+	}
 
-    if e.c.x < len(*pl) {
-        *pl = append((*pl)[:e.c.x], (*pl)[e.c.x+1:]...)
-        if e.c.x >= len(*pl) {
-            e.c.x = len(*pl)-1
-        }
-    }
+	if e.c.x < len(*pl) {
+		*pl = append((*pl)[:e.c.x], (*pl)[e.c.x+1:]...)
+		if e.c.x >= len(*pl) {
+			e.c.x = len(*pl) - 1
+		}
+	}
 }
 
 // Add a new line
@@ -411,11 +411,11 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		}
 	}
 
-    s := ev.Str()
-    r, size := utf8.DecodeRuneInString(s)
-    if r == utf8.RuneError || size != len(s) {
-        log.Fatal(r)
-    }
+	s := ev.Str()
+	r, size := utf8.DecodeRuneInString(s)
+	if r == utf8.RuneError || size != len(s) {
+		log.Fatal(r)
+	}
 	switch r {
 	case 'j':
 		e.handlerune(r, e.down)
@@ -443,12 +443,12 @@ func (e *editor) handle(ev *tcell.EventKey) {
 			}
 		}
 		e.handlerune(r, nfn)
-    case 'e':
-        e.handlerune(r, e.rightword)
-    case 'b':
-        e.handlerune(r, e.leftword)
-    case 'x':
-        e.handlerune(r, e.deletechar)
+	case 'e':
+		e.handlerune(r, e.rightword)
+	case 'b':
+		e.handlerune(r, e.leftword)
+	case 'x':
+		e.handlerune(r, e.deletechar)
 	case ':':
 		nfn := func() {
 			e.mode = Command
