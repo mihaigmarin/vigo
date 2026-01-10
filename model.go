@@ -50,7 +50,7 @@ func (m *model) open(fname string) {
 
 // Write lines to the current file opened by the editor.
 func (m *model) write() {
-	f, err := os.OpenFile(m.fname, os.O_RDWR|os.O_CREATE, 0644)
+	f, err := os.OpenFile(m.fname, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}

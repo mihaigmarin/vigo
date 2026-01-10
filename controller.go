@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"unicode"
 	"unicode/utf8"
@@ -30,8 +29,11 @@ func (c *controller) up() {
 	} else if c.c.offset > 0 {
 		c.c.offset--
 	}
-	if c.c.x > len(c.m.lines[c.c.y+c.c.offset])-1 {
-		c.c.x = len(c.m.lines[c.c.y+c.c.offset]) - 1
+	line := c.m.lines[c.c.y+c.c.offset]
+	if len(line) == 0 {
+		c.c.x = 0
+	} else if c.c.x > len(line)-1 {
+		c.c.x = len(line) - 1
 	}
 }
 
@@ -44,8 +46,11 @@ func (c *controller) down() {
 		} else {
 			c.c.offset++
 		}
-		if c.c.x > len(c.m.lines[c.c.y+c.c.offset])-1 {
-			c.c.x = len(c.m.lines[c.c.y+c.c.offset]) - 1
+		line := c.m.lines[c.c.y+c.c.offset]
+		if len(line) == 0 {
+			c.c.x = 0
+		} else if c.c.x > len(line)-1 {
+			c.c.x = len(line) - 1
 		}
 	}
 }
@@ -103,8 +108,9 @@ func (c *controller) put(r rune) {
 	// function 'handleKey'
 	if !unicode.IsControl(r) {
 		pl := &c.m.lines[c.c.y+c.c.offset]
-		*pl = append((*pl)[:c.c.x], r)
-		*pl = append(*pl, (*pl)[c.c.x+1:]...)
+		*pl = append(*pl, 0)
+		copy((*pl)[c.c.x+1:], (*pl)[c.c.x:])
+		(*pl)[c.c.x] = r
 		c.c.x++
 	}
 }
@@ -159,9 +165,17 @@ func (c *controller) newline() {
 // Delete line
 func (c *controller) deleteline() {
 	i := c.c.y + c.c.offset
-	c.m.lines = append(c.m.lines[:i], c.m.lines[i+1:]...)
-	if i == len(c.m.lines) {
-		c.c.y--
+	if len(c.m.lines) > 1 {
+		c.m.lines = append(c.m.lines[:i], c.m.lines[i+1:]...)
+		if i >= len(c.m.lines) {
+			if c.c.y > 0 {
+				c.c.y--
+			} else if c.c.offset > 0 {
+				c.c.offset--
+			}
+		}
+	} else {
+		c.m.lines[0] = []rune{}
 	}
 	// Everytime we delete a line cursor x position is reseted
 	c.c.x = 0
@@ -259,7 +273,7 @@ func (c *controller) handle(ev *tcell.EventKey) {
 	s := ev.Str()
 	r, size := utf8.DecodeRuneInString(s)
 	if r == utf8.RuneError || size != len(s) {
-		log.Fatal(r)
+		return
 	}
 	switch r {
 	case 'j':
