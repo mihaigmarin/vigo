@@ -86,6 +86,21 @@ func (c *controller) right() {
 	}
 }
 
+// Move editor cursor to start of line. Triggered with "0" in normal mode
+func (c *controller) startofline() {
+	c.c.x = 0
+}
+
+// Move editor cursor to end of line. Triggered with "$" in normal mode
+func (c *controller) endofline() {
+	line := c.m.lines[c.c.y+c.c.offset]
+	if len(line) > 0 {
+		c.c.x = len(line) - 1
+	} else {
+		c.c.x = 0
+	}
+}
+
 // Move cursor left until the end of word. Triggered with "b" in normal mode
 func (c *controller) leftword() {
 	i := c.c.y + c.c.offset
@@ -315,6 +330,10 @@ func (c *controller) handle(ev *tcell.EventKey) {
 		c.handlerune(r, c.left)
 	case 'l':
 		c.handlerune(r, c.right)
+	case '0':
+		c.handlerune(r, c.startofline)
+	case '$':
+		c.handlerune(r, c.endofline)
 	case 'i':
 		nfn := func() { c.m.mode = INSERT }
 		c.handlerune(r, nfn)
