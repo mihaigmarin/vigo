@@ -30,10 +30,16 @@ func (c *controller) up() {
 		c.c.offset--
 	}
 	line := c.m.lines[c.c.y+c.c.offset]
-	if len(line) == 0 {
-		c.c.x = 0
-	} else if c.c.x > len(line)-1 {
-		c.c.x = len(line) - 1
+	limit := len(line) - 1
+	if c.m.mode == INSERT {
+		limit = len(line)
+	}
+	if c.c.x > limit {
+		if limit < 0 {
+			c.c.x = 0
+		} else {
+			c.c.x = limit
+		}
 	}
 }
 
@@ -47,10 +53,16 @@ func (c *controller) down() {
 			c.c.offset++
 		}
 		line := c.m.lines[c.c.y+c.c.offset]
-		if len(line) == 0 {
-			c.c.x = 0
-		} else if c.c.x > len(line)-1 {
-			c.c.x = len(line) - 1
+		limit := len(line) - 1
+		if c.m.mode == INSERT {
+			limit = len(line)
+		}
+		if c.c.x > limit {
+			if limit < 0 {
+				c.c.x = 0
+			} else {
+				c.c.x = limit
+			}
 		}
 	}
 }
@@ -64,7 +76,12 @@ func (c *controller) left() {
 
 // Move editor cursor right.
 func (c *controller) right() {
-	if c.c.x < len(c.m.lines[c.c.y+c.c.offset])-1 {
+	line := c.m.lines[c.c.y+c.c.offset]
+	limit := len(line) - 1
+	if c.m.mode == INSERT {
+		limit = len(line)
+	}
+	if c.c.x < limit {
 		c.c.x++
 	}
 }
@@ -122,6 +139,17 @@ func (c *controller) backspace() {
 		pl := &c.m.lines[c.c.y+c.c.offset]
 		*pl = append((*pl)[:c.c.x-1], (*pl)[c.c.x:]...)
 		c.c.x--
+	} else if c.c.y+c.c.offset > 0 {
+		i := c.c.y + c.c.offset
+		prevLineLen := len(c.m.lines[i-1])
+		c.m.lines[i-1] = append(c.m.lines[i-1], c.m.lines[i]...)
+		c.m.lines = append(c.m.lines[:i], c.m.lines[i+1:]...)
+		if c.c.y > 0 {
+			c.c.y--
+		} else if c.c.offset > 0 {
+			c.c.offset--
+		}
+		c.c.x = prevLineLen
 	}
 }
 
