@@ -44,7 +44,7 @@ func (m *model) open(fname string) {
 	// If the file doesn't have any lines,
 	// add empty space at the start of line
 	if len(m.lines) == 0 {
-		m.lines = append(m.lines, []rune{' '})
+		m.lines = append(m.lines, []rune{})
 	}
 }
 

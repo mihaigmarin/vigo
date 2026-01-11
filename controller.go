@@ -134,7 +134,7 @@ func (c *controller) deletechar() {
 	}
 
 	if len(*pl) == 1 {
-		(*pl)[c.c.x] = ' '
+		*pl = []rune{}
 		c.c.x = 0
 		return
 	}
@@ -152,7 +152,7 @@ func (c *controller) newline() {
 	i := c.c.y + c.c.offset + 1
 	c.m.lines = append(c.m.lines, nil)
 	copy(c.m.lines[i+1:], c.m.lines[i:])
-	c.m.lines[i] = []rune{' '}
+	c.m.lines[i] = []rune{}
 	_, h := c.v.screen.Size()
 	if c.c.y >= h-1 {
 		c.c.offset++
@@ -246,6 +246,9 @@ func (c *controller) handle(ev *tcell.EventKey) {
 		switch c.m.mode {
 		case NORMAL:
 		case INSERT, COMMAND:
+			if c.m.mode == INSERT {
+				c.left()
+			}
 			c.m.mode = NORMAL
 		}
 	case tcell.KeyBackspace, tcell.KeyBackspace2:
