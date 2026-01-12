@@ -32,6 +32,7 @@ func (v *view) init() {
 func (v *view) draw(m *model, c *cursor) {
 	v.screen.Clear()
 	w, h := v.screen.Size()
+	v.cl.c.y = h - 1
 	for i := 0; i < h-1 && (i+c.offset) < len(m.lines); i++ {
 		l := m.lines[i+c.offset]
 		for j, c := range l {

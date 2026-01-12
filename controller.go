@@ -104,12 +104,15 @@ func (c *controller) endofline() {
 // Move cursor left until the end of word. Triggered with "b" in normal mode
 func (c *controller) leftword() {
 	i := c.c.y + c.c.offset
+	if len(c.m.lines[i]) == 0 {
+		return
+	}
 
 	c.left()
-	for c.c.x >= 0 && unicode.IsSpace(c.m.lines[i][c.c.x]) {
+	for c.c.x > 0 && unicode.IsSpace(c.m.lines[i][c.c.x]) {
 		c.left()
 	}
-	for c.c.x-1 >= 0 {
+	for c.c.x > 0 {
 		if unicode.IsSpace(c.m.lines[i][c.c.x-1]) {
 			break
 		}
@@ -120,13 +123,22 @@ func (c *controller) leftword() {
 // Move cursor right until the end of word. Triggered with "e" in normal mode
 func (c *controller) rightword() {
 	i := c.c.y + c.c.offset
+	line := c.m.lines[i]
+	if len(line) == 0 {
+		return
+	}
+
+	limit := len(line) - 1
+	if c.m.mode == INSERT {
+		limit = len(line)
+	}
 
 	c.right()
-	for c.c.x < len(c.m.lines[i]) && unicode.IsSpace(c.m.lines[i][c.c.x]) {
+	for c.c.x < limit && unicode.IsSpace(line[c.c.x]) {
 		c.right()
 	}
-	for c.c.x+1 < len(c.m.lines[i]) {
-		if unicode.IsSpace(c.m.lines[i][c.c.x+1]) {
+	for c.c.x < limit {
+		if unicode.IsSpace(line[c.c.x+1]) {
 			break
 		}
 		c.right()
@@ -228,15 +240,11 @@ func (c *controller) deleteline() {
 // If the cursor is in the middle of a line, split that line.
 func (c *controller) newlinesplit() {
 	l := c.m.lines[c.c.y+c.c.offset]
-	before := l[:c.c.x]
-	after := l[c.c.x:]
-	// Make sure we insert at least one empty char per new line
-	if len(before) == 0 {
-		before = []rune{}
-	}
-	if len(after) == 0 {
-		after = []rune{}
-	}
+	before := make([]rune, c.c.x)
+	copy(before, l[:c.c.x])
+	after := make([]rune, len(l)-c.c.x)
+	copy(after, l[c.c.x:])
+
 	i := c.c.y + c.c.offset + 1
 	c.m.lines = append(c.m.lines, nil)
 	copy(c.m.lines[i+1:], c.m.lines[i:])
