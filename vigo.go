@@ -164,6 +164,11 @@ func (e *editor) draw() {
 			e.screen.SetContent(j, i, c, nil, e.style)
 		}
 	}
+    // Note: Add '~' on each remaining line on the screen that
+    // is not contained inside "e.lines".
+    for i := len(e.lines); i < h-1; i++ {
+        e.screen.SetContent(0, i, rune('~'), nil, e.style)
+    }
 	for i, r := range e.cl.buf {
 		if i >= w {
 			break
