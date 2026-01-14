@@ -164,11 +164,11 @@ func (e *editor) draw() {
 			e.screen.SetContent(j, i, c, nil, e.style)
 		}
 	}
-    // Note: Add '~' on each remaining line on the screen that
-    // is not contained inside "e.lines".
-    for i := len(e.lines); i < h-1; i++ {
-        e.screen.SetContent(0, i, rune('~'), nil, e.style)
-    }
+	// Note: Add '~' on each remaining line on the screen that
+	// is not contained inside "e.lines".
+	for i := len(e.lines); i < h-1; i++ {
+		e.screen.SetContent(0, i, rune('~'), nil, e.style)
+	}
 	for i, r := range e.cl.buf {
 		if i >= w {
 			break
@@ -189,10 +189,10 @@ func (e *editor) linelimit(y int) int {
 	if e.mode == Insert {
 		limit = len(e.lines[y])
 	}
-    if limit < 0 {
-        limit = 0
-    }
-    return limit
+	if limit < 0 {
+		limit = 0
+	}
+	return limit
 }
 
 // Move editor cursor up.
@@ -202,7 +202,7 @@ func (e *editor) up() {
 	} else if e.c.offset > 0 {
 		e.c.offset--
 	}
-	limit := e.linelimit(e.c.y+e.c.offset)
+	limit := e.linelimit(e.c.y + e.c.offset)
 	if e.c.x > limit {
 		e.c.x = limit
 	}
@@ -217,7 +217,7 @@ func (e *editor) down() {
 		} else {
 			e.c.offset++
 		}
-		limit := e.linelimit(e.c.y+e.c.offset)
+		limit := e.linelimit(e.c.y + e.c.offset)
 		if e.c.x > limit {
 			e.c.x = limit
 		}
@@ -233,7 +233,7 @@ func (e *editor) left() {
 
 // Move editor cursor right.
 func (e *editor) right() {
-	limit := e.linelimit(e.c.y+e.c.offset)
+	limit := e.linelimit(e.c.y + e.c.offset)
 	if e.c.x < limit {
 		e.c.x++
 	}
@@ -269,6 +269,17 @@ func (e *editor) rightword() {
 		}
 		e.right()
 	}
+}
+
+// Move cursor to the end of line.
+func (e *editor) endofline() {
+	limit := e.linelimit(e.c.y + e.c.offset)
+	e.c.x = limit
+}
+
+// Move cursor to the start of line.
+func (e *editor) startofline() {
+	e.c.x = 0
 }
 
 // put rune to screen
@@ -468,6 +479,10 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		e.handlerune(r, e.leftword)
 	case 'x':
 		e.handlerune(r, e.deletechar)
+	case '$':
+		e.handlerune(r, e.endofline)
+	case '0':
+		e.handlerune(r, e.startofline)
 	case ':':
 		nfn := func() {
 			e.mode = Command
