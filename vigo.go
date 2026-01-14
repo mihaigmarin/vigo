@@ -185,8 +185,12 @@ func (e *editor) up() {
 	} else if e.c.offset > 0 {
 		e.c.offset--
 	}
-	if e.c.x > len(e.lines[e.c.y+e.c.offset])-1 {
-		e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
+	limit := len(e.lines[e.c.y+e.c.offset]) - 1
+	if e.mode == Insert {
+		limit = len(e.lines[e.c.y+e.c.offset])
+	}
+	if e.c.x > limit {
+		e.c.x = limit
 	}
 }
 
@@ -199,8 +203,12 @@ func (e *editor) down() {
 		} else {
 			e.c.offset++
 		}
-		if e.c.x > len(e.lines[e.c.y+e.c.offset])-1 {
-			e.c.x = len(e.lines[e.c.y+e.c.offset]) - 1
+		limit := len(e.lines[e.c.y+e.c.offset]) - 1
+		if e.mode == Insert {
+			limit = len(e.lines[e.c.y+e.c.offset])
+		}
+		if e.c.x > limit {
+			e.c.x = limit
 		}
 	}
 }
@@ -214,7 +222,11 @@ func (e *editor) left() {
 
 // Move editor cursor right.
 func (e *editor) right() {
-	if e.c.x < len(e.lines[e.c.y+e.c.offset])-1 {
+	limit := len(e.lines[e.c.y+e.c.offset]) - 1
+	if e.mode == Insert {
+		limit = len(e.lines[e.c.y+e.c.offset])
+	}
+	if e.c.x < limit {
 		e.c.x++
 	}
 }
@@ -258,8 +270,7 @@ func (e *editor) put(r rune) {
 	// function 'handleKey'
 	if !unicode.IsControl(r) {
 		pl := &e.lines[e.c.y+e.c.offset]
-		*pl = append((*pl)[:e.c.x], r)
-		*pl = append(*pl, (*pl)[e.c.x+1:]...)
+		*pl = append((*pl)[:e.c.x], append([]rune{r}, (*pl)[e.c.x:]...)...)
 		e.c.x++
 	}
 }
@@ -326,8 +337,10 @@ func (e *editor) deleteline() {
 // If the cursor is in the middle of a line, split that line.
 func (e *editor) newlinesplit() {
 	l := e.lines[e.c.y+e.c.offset]
-	before := l[:e.c.x]
-	after := l[e.c.x:]
+	before := make([]rune, e.c.x)
+	after := make([]rune, len(l)-e.c.x)
+	copy(before, l[:e.c.x])
+	copy(after, l[e.c.x:])
 	// Make sure we insert at least one empty char per new line
 	if len(before) == 0 {
 		before = []rune{}
@@ -369,52 +382,57 @@ func (e *editor) handle(ev *tcell.EventKey) {
 		e.lastkey = 0
 	}
 
-	switch ev.Key() {
-	case tcell.KeyLeft:
-		e.left()
-	case tcell.KeyRight:
-		e.right()
-	case tcell.KeyUp:
-		e.up()
-	case tcell.KeyDown:
-		e.down()
-	case tcell.KeyCtrlQ:
-		e.quit()
-	case tcell.KeyCtrlC:
-		e.mode = Normal
-		e.cl.reset()
-	case tcell.KeyEsc:
-		switch e.mode {
-		case Normal:
-		case Insert, Command:
-			e.mode = Normal
-		}
-	case tcell.KeyBackspace, tcell.KeyBackspace2:
-		switch e.mode {
-		case Normal:
+	if ev.Key() != tcell.KeyRune {
+		switch ev.Key() {
+		case tcell.KeyLeft:
 			e.left()
-		case Insert:
-			e.backspace()
-		case Command:
-			e.cl.backspace()
-		default:
-			// Do nothing
-		}
-	case tcell.KeyEnter:
-		switch e.mode {
-		case Normal:
+		case tcell.KeyRight:
+			e.right()
+		case tcell.KeyUp:
+			e.up()
+		case tcell.KeyDown:
 			e.down()
-		case Insert:
-			e.newlinesplit()
-		case Command:
-			e.exec()
+		case tcell.KeyCtrlQ:
+			e.quit()
+		case tcell.KeyCtrlC:
+			e.mode = Normal
+			e.cl.reset()
+		case tcell.KeyEsc:
+			switch e.mode {
+			case Normal:
+			case Insert, Command:
+				e.mode = Normal
+			}
+		case tcell.KeyBackspace, tcell.KeyBackspace2:
+			switch e.mode {
+			case Normal:
+				e.left()
+			case Insert:
+				e.backspace()
+			case Command:
+				e.cl.backspace()
+			default:
+				// Do nothing
+			}
+		case tcell.KeyEnter:
+			switch e.mode {
+			case Normal:
+				e.down()
+			case Insert:
+				e.newlinesplit()
+			case Command:
+				e.exec()
+			}
 		}
+		// Note: Return if we handled a special key that is not a rune.
+		// In this way, we will not continue with the rune logic.
+		return
 	}
 
 	s := ev.Str()
 	r, size := utf8.DecodeRuneInString(s)
 	if r == utf8.RuneError || size != len(s) {
-		log.Fatal(r)
+		return
 	}
 	switch r {
 	case 'j':
