@@ -119,7 +119,7 @@ func (e *editor) open(fname string) {
 	// If the file doesn't have any lines,
 	// add empty space at the start of line
 	if len(e.lines) == 0 {
-		e.lines = append(e.lines, []rune{' '})
+		e.lines = append(e.lines, []rune{})
 	}
 }
 
@@ -178,6 +178,18 @@ func (e *editor) draw() {
 	e.screen.Show()
 }
 
+// Returns the line limit at the "y" position.
+func (e *editor) linelimit(y int) int {
+	limit := len(e.lines[y]) - 1
+	if e.mode == Insert {
+		limit = len(e.lines[y])
+	}
+    if limit < 0 {
+        limit = 0
+    }
+    return limit
+}
+
 // Move editor cursor up.
 func (e *editor) up() {
 	if e.c.y > 0 {
@@ -185,10 +197,7 @@ func (e *editor) up() {
 	} else if e.c.offset > 0 {
 		e.c.offset--
 	}
-	limit := len(e.lines[e.c.y+e.c.offset]) - 1
-	if e.mode == Insert {
-		limit = len(e.lines[e.c.y+e.c.offset])
-	}
+	limit := e.linelimit(e.c.y+e.c.offset)
 	if e.c.x > limit {
 		e.c.x = limit
 	}
@@ -203,10 +212,7 @@ func (e *editor) down() {
 		} else {
 			e.c.offset++
 		}
-		limit := len(e.lines[e.c.y+e.c.offset]) - 1
-		if e.mode == Insert {
-			limit = len(e.lines[e.c.y+e.c.offset])
-		}
+		limit := e.linelimit(e.c.y+e.c.offset)
 		if e.c.x > limit {
 			e.c.x = limit
 		}
@@ -222,10 +228,7 @@ func (e *editor) left() {
 
 // Move editor cursor right.
 func (e *editor) right() {
-	limit := len(e.lines[e.c.y+e.c.offset]) - 1
-	if e.mode == Insert {
-		limit = len(e.lines[e.c.y+e.c.offset])
-	}
+	limit := e.linelimit(e.c.y+e.c.offset)
 	if e.c.x < limit {
 		e.c.x++
 	}
@@ -294,7 +297,7 @@ func (e *editor) deletechar() {
 	}
 
 	if len(*pl) == 1 {
-		(*pl)[e.c.x] = ' '
+		*pl = []rune{}
 		e.c.x = 0
 		return
 	}
@@ -312,7 +315,7 @@ func (e *editor) newline() {
 	i := e.c.y + e.c.offset + 1
 	e.lines = append(e.lines, nil)
 	copy(e.lines[i+1:], e.lines[i:])
-	e.lines[i] = []rune{' '}
+	e.lines[i] = []rune{}
 	_, h := e.screen.Size()
 	if e.c.y >= h-1 {
 		e.c.offset++
@@ -341,13 +344,6 @@ func (e *editor) newlinesplit() {
 	after := make([]rune, len(l)-e.c.x)
 	copy(before, l[:e.c.x])
 	copy(after, l[e.c.x:])
-	// Make sure we insert at least one empty char per new line
-	if len(before) == 0 {
-		before = []rune{}
-	}
-	if len(after) == 0 {
-		after = []rune{}
-	}
 	i := e.c.y + e.c.offset + 1
 	e.lines = append(e.lines, nil)
 	copy(e.lines[i+1:], e.lines[i:])
