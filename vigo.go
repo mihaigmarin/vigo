@@ -341,7 +341,7 @@ func (e *editor) newline() {
 	e.c.x = 0
 }
 
-// Delete line
+// Delete line at cursor position.
 func (e *editor) deleteline() {
 	i := e.c.y + e.c.offset
 	e.lines = append(e.lines[:i], e.lines[i+1:]...)
@@ -350,6 +350,40 @@ func (e *editor) deleteline() {
 	}
 	// Everytime we delete a line cursor x position is reseted
 	e.c.x = 0
+}
+
+// Delete word at cursor position.
+func (e *editor) deleteword() {
+	i := e.c.y + e.c.offset
+	pl := &e.lines[i]
+
+	if len(*pl) == 0 {
+		e.deleteline()
+		return
+	}
+
+	from := e.c.x
+	c := (*pl)[from]
+
+	to := from
+	// Skip the same character type (letters or non-letters)
+	for to < len(*pl) && unicode.IsLetter((*pl)[to]) == unicode.IsLetter(c) {
+		to++
+	}
+
+	// Skip spaces after the word
+	for to < len(*pl) && unicode.IsSpace((*pl)[to]) {
+		to++
+	}
+
+	// Perform the deletion in one step
+	*pl = append((*pl)[:from], (*pl)[to:]...)
+
+	// Ensure the cursor stays within valid bounds
+	limit := e.linelimit(i)
+	if e.c.x > limit {
+		e.c.x = limit
+	}
 }
 
 // Add a new line from the cursor current position.
@@ -470,6 +504,13 @@ func (e *editor) handle(ev *tcell.EventKey) {
 				e.deleteline()
 			} else {
 				e.lastkey = r
+			}
+		}
+		e.handlerune(r, nfn)
+	case 'w':
+		nfn := func() {
+			if prevkey == 'd' {
+				e.deleteword()
 			}
 		}
 		e.handlerune(r, nfn)
